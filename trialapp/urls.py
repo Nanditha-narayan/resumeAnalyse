@@ -1,7 +1,6 @@
-from django.contrib import admin
 from django.urls import path
-from trialapp import views
+from trialapp.views import index
 
 urlpatterns = [
-    path('', views.index, name="index"),
+    path('', index, name='index'),  # Root URL will show index1.html
 ]
