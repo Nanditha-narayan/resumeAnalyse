@@ -141,47 +141,85 @@
             <input type="file" id="resumeFile" accept=".pdf, .docx" required>
             <button type="submit">Upload & Analyze</button>
         </form>
+        <p id="response-message"></p> <!-- Message area for response -->
         <div id="results"></div>
     </div>
     <!-- Footer -->
     <footer>
         <p>&copy; 2025 Resume Analyzer | Made with ❤️</p>
     </footer>
+
+    <!-- JavaScript for handling file upload -->
     <script>
+        // Function to get CSRF token from Django
+        function getCSRFToken() {
+            let cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                let [name, value] = cookie.trim().split('=');
+                if (name === 'csrftoken') {
+                    return value;
+                }
+            }
+            return '';
+        }
+    
         document.getElementById("uploadForm").addEventListener("submit", async function(event) {
             event.preventDefault();
             let fileInput = document.getElementById("resumeFile").files[0];
+            let responseMessage = document.getElementById("response-message");
+            let resultsDiv = document.getElementById("results");
+    
+            responseMessage.textContent = "";  // Clear previous messages
+            resultsDiv.innerHTML = "";  // Clear previous results
+    
             if (!fileInput) {
-                alert("Please upload a file!");
+                responseMessage.textContent = "Please upload a file!";
+                responseMessage.style.color = "red";
                 return;
             }
+    
             let formData = new FormData();
-            formData.append("file", fileInput);
+            formData.append("resume", fileInput);  // Make sure the key matches the one in Django
+    
             try {
-                let response = await fetch("http://127.0.0.1:5000/upload", {
+                let response = await fetch("http://127.0.0.1:8000/upload/", {
                     method: "POST",
+                    headers: {
+                        "X-CSRFToken": getCSRFToken()  // Add CSRF token in headers
+                    },
                     body: formData
                 });
+    
                 let data = await response.json();
-                displayResults(data);
+                if (response.ok) {
+                    responseMessage.textContent = "Resume analyzed successfully!";
+                    responseMessage.style.color = "green";
+                    displayResults(data);
+                } else {
+                    responseMessage.textContent = "Failed to analyze resume.";
+                    responseMessage.style.color = "red";
+                }
             } catch (error) {
                 console.error("Error:", error);
-                alert("Failed to analyze resume.");
+                responseMessage.textContent = "";
+                responseMessage.style.color = "red";
             }
         });
-
+    
         function displayResults(data) {
             let resultsDiv = document.getElementById("results");
             resultsDiv.innerHTML = `
                 <h2>Extracted Details:</h2>
                 <h3>Skills:</h3>
-                <ul>${data.Skills.map(skill => `<li>${skill}</li>`).join("")}</ul>
+                <ul>${data.data.Skills.map(skill => `<li>${skill}</li>`).join("")}</ul>
                 <h3>Experience:</h3>
-                <ul>${data.Experience.map(exp => `<li>${exp}</li>`).join("")}</ul>
+                <ul>${data.data.Experience.map(exp => `<li>${exp}</li>`).join("")}</ul>
                 <h3>Projects:</h3>
-                <ul>${data.Projects.map(proj => `<li>${proj}</li>`).join("")}</ul>
+                <ul>${data.data.Projects.map(proj => `<li>${proj}</li>`).join("")}</ul>
             `;
         }
     </script>
+    
+    
 </body>
-</html>-->
+</html>

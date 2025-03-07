@@ -1,6 +1,7 @@
 from django.urls import path
-from trialapp.views import index
+from .views import index, upload_and_analyze
 
 urlpatterns = [
-    path('', index, name='index'),  # Root URL will show index1.html
+    path('', index, name='index'),  # Serve the HTML page
+    path('upload/', upload_and_analyze, name='upload_and_analyze'),  # Handle file uploads
 ]
