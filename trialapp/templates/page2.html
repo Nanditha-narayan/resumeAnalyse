@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Upload</title>
+    <style>
+        .message {
+            color: green;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #results {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <p class="message">Resume uploaded successfully</p>
+
+    <button onclick="fetchResults()">View Results</button>
+
+    <div id="results"></div>
+
+    <script>
+        function fetchResults() {
+            fetch('/get_results/')
+                .then(response => response.json())
+                .then(data => {
+                    let resultsDiv = document.getElementById('results');
+                    resultsDiv.innerHTML = "<h3>Matching Jobs:</h3>";
+    
+                    if (data.results.length === 0) {
+                        resultsDiv.innerHTML += "<p>No matching jobs found.</p>";
+                        return;
+                    }
+    
+                    data.results.forEach(resume => {
+                        resultsDiv.innerHTML += `<p><strong>Resume ID:</strong> ${resume.resume_id}</p>`;
+                        resume.matched_jobs.forEach(job => {
+                            resultsDiv.innerHTML += `<p>- ${job.job_title} at ${job.company} (${job.match_score.toFixed(2)}% match)</p>`;
+                        });
+                        resultsDiv.innerHTML += "<hr>";
+                    });
+                })
+                .catch(error => {
+                    console.error("Error fetching results:", error);
+                });
+        }
+    </script>
+    
+
+</body>
+</html>

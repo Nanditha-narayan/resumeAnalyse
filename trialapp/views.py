@@ -8,21 +8,38 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from pymongo import MongoClient
 from django.http import JsonResponse
-#from .resume_parser import parse_resume 
 
-def index(request):
-    return render(request, 'index1.html')
+# Connect to MongoDB
+client = MongoClient("mongodb://localhost:27017/")  # Update URI if needed
+resume_db = client["ResumeDB"]  # Resume Database
+job_db = client["kaggle_db"]  # Job Database
+
+resume_collection = resume_db["ParsedResumes"]  # Resumes Collection
+job_collection = job_db["job_postings"]  # Job Postings Collection
+matched_collection = resume_db["MatchedJobs"]  # Collection to store matched jobs
 
 # Load spaCy NLP model
 nlp = spacy.load("en_core_web_sm")
 
-# Define skill, experience, and project keywords
+# Define keywords for parsing
 SKILL_KEYWORDS = {"Python", "Java", "C++", "Flask", "Django", "Machine Learning", "Deep Learning", "SQL", "NoSQL", "AWS", "Terraform", "Linux"}
 EXPERIENCE_KEYWORDS = {"intern", "developer", "engineer", "full-time", "research"}
 PROJECT_KEYWORDS = {"project", "developed", "implemented", "designed"}
 
-# Function to extract text from PDF
+# Threshold for job matching
+THRESHOLD = 50  # Percentage match
+
+
+def index(request):
+    """Render the upload page."""
+    return render(request, 'index1.html')
+
+def page2(request):
+    return render(request, 'page2.html')    
+
+
 def extract_text_from_pdf(pdf_path):
+    """Extract text from a PDF file."""
     text = ""
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
@@ -31,30 +48,30 @@ def extract_text_from_pdf(pdf_path):
                 text += extracted_text + "\n"
     return text
 
-# Function to extract text from DOCX
+
 def extract_text_from_docx(docx_path):
+    """Extract text from a DOCX file."""
     doc = docx.Document(docx_path)
     return "\n".join([para.text for para in doc.paragraphs])
 
-# Function to extract resume details
+
 def extract_resume_details(text):
-    skills = set()
-    projects = set()
-    experience = set()
+    """Extract skills, projects, and experience from resume text."""
+    skills, projects, experience = set(), set(), set()
     
     lines = text.split("\n")
     for line in lines:
         line = line.strip()
         if not line:
             continue
-        # Extract skills
+        
         for skill in SKILL_KEYWORDS:
             if re.search(rf"\b{re.escape(skill)}\b", line, re.IGNORECASE):
                 skills.add(skill)
-        # Extract projects
+
         if any(word in line.lower() for word in PROJECT_KEYWORDS):
             projects.add(line)
-        # Extract experience
+
         if any(word in line.lower() for word in EXPERIENCE_KEYWORDS):
             experience.add(line)
 
@@ -64,22 +81,71 @@ def extract_resume_details(text):
         "Skills": sorted(skills)
     }
 
-# Function to store extracted data in MongoDB
-def store_in_mongodb(data):
-    client = MongoClient("mongodb://localhost:27017/")  # Change if using a remote server
-    db = client["ResumeDB"]  # Database name
-    collection = db["ParsedResumes"]  # Collection name
-    result = collection.insert_one(data)
-    print(f"Resume data inserted with ID: {result.inserted_id}")
 
-# Django View to Handle Resume Upload & Analysis
+def store_resume_in_mongodb(parsed_data):
+    """Store parsed resume data in MongoDB."""
+    result = resume_collection.insert_one(parsed_data)
+    print(f"Resume data inserted with ID: {result.inserted_id}")
+    return str(result.inserted_id)  # Return the MongoDB document ID
+
+
+def calculate_match(resume_skills, job_skills):
+    """Calculate skill match percentage between resume and job posting."""
+    if not isinstance(job_skills, str):  
+        job_skills = ""
+
+    resume_set = set(resume_skills)
+    job_set = set(job_skills.split(", "))  # Assuming skills are comma-separated
+
+    if not job_set:
+        return 0
+
+    common_skills = resume_set.intersection(job_set)
+    match_percentage = (len(common_skills) / len(job_set)) * 100
+    return match_percentage
+
+
+def match_resume_to_jobs(resume_id, resume_skills):
+    """Find and store job postings that match the resume skills."""
+    matched_jobs = []
+
+    jobs = list(job_collection.find())  # Fetch all job postings
+    for job in jobs:
+        job_title = job.get("job_title", "Unknown Job")
+        job_company = job.get("company", "Unknown Company")
+        job_location = job.get("job_location", "Unknown Location")
+        job_link = job.get("job_link", "#")
+        job_skills = job.get("job_skills", "")
+
+        match_score = calculate_match(resume_skills, job_skills)
+
+        if match_score >= THRESHOLD:
+            matched_jobs.append({
+                "job_title": job_title,
+                "company": job_company,
+                "location": job_location,
+                "job_link": job_link,
+                "match_score": round(match_score, 2)
+            })
+
+    if matched_jobs:
+        matched_collection.insert_one({
+            "resume_id": resume_id,
+            "matched_jobs": matched_jobs
+        })
+        print(f"Matched jobs stored for Resume ID: {resume_id}")
+
+    return matched_jobs
+
+
 def upload_and_analyze(request):
+    """Handle resume upload, parse details, store in DB, and match with jobs."""
     if request.method == "POST" and request.FILES.get("resume"):
         uploaded_file = request.FILES["resume"]
         file_path = default_storage.save(f"uploads/{uploaded_file.name}", ContentFile(uploaded_file.read()))
         full_path = os.path.join(default_storage.location, file_path)
 
-        # Determine file type and extract text
+        # Extract text based on file type
         if uploaded_file.name.endswith(".pdf"):
             resume_text = extract_text_from_pdf(full_path)
         elif uploaded_file.name.endswith(".docx"):
@@ -87,10 +153,23 @@ def upload_and_analyze(request):
         else:
             return JsonResponse({"error": "Unsupported file format"}, status=400)
 
-        # Extract details and store in DB
+        # Parse resume details
         parsed_data = extract_resume_details(resume_text)
-        store_in_mongodb(parsed_data)
+        resume_id = store_resume_in_mongodb(parsed_data)  # Store in DB and get ID
 
-        return JsonResponse({"message": "Resume parsed and stored successfully!"})
+        # Match with jobs
+        matched_jobs = match_resume_to_jobs(resume_id, parsed_data["Skills"])
+
+        return JsonResponse({
+            "message": "Resume parsed and matched successfully!",
+            "matched_jobs": matched_jobs
+        })
 
     return JsonResponse({"error": "No file uploaded"}, status=400)
+
+
+def get_matched_jobs(request):
+    """Fetch matched jobs from MongoDB and return as JSON."""
+    matched_jobs = list(matched_collection.find({}, {"_id": 0}))  # Fetch all matched jobs, exclude MongoDB ID
+
+    return JsonResponse({"results": matched_jobs}, safe=False)
