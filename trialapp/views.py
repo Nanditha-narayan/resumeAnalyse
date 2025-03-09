@@ -1,3 +1,4 @@
+
 import os
 import spacy
 import pdfplumber
@@ -27,7 +28,7 @@ EXPERIENCE_KEYWORDS = {"intern", "developer", "engineer", "full-time", "research
 PROJECT_KEYWORDS = {"project", "developed", "implemented", "designed"}
 
 # Threshold for job matching
-THRESHOLD = 50  # Percentage match
+THRESHOLD = 50 # Percentage match
 
 
 def index(request):
@@ -169,7 +170,36 @@ def upload_and_analyze(request):
 
 
 def get_matched_jobs(request):
-    """Fetch matched jobs from MongoDB and return as JSON."""
-    matched_jobs = list(matched_collection.find({}, {"_id": 0}))  # Fetch all matched jobs, exclude MongoDB ID
+    """Fetch matched jobs for each resume from MongoDB and return as JSON."""
+    matched_jobs = list(matched_collection.find({}, {"_id": 0, "resume_id": 1, "matched_jobs": 1}))
 
-    return JsonResponse({"results": matched_jobs}, safe=False)
+    formatted_results = []
+    for resume in matched_jobs:
+        resume_id = resume.get("resume_id", "Unknown ID")
+        jobs = resume.get("matched_jobs", [])
+
+        job_list = []
+        for job in jobs:
+            job_list.append({
+                "job_title": job.get("job_title", "Unknown Job"),
+                "location": job.get("location", "Unknown Location"),
+                "match_score": job.get("match_score", 0)
+            })
+
+        formatted_results.append({
+            "resume_id": resume_id,
+            "matched_jobs": job_list
+        })
+
+    return JsonResponse({"results": formatted_results}, safe=False)
+
+def upload_resume(request):
+    if request.method == 'POST':
+        # Handle the uploaded resume file (optional)
+        uploaded_file = request.FILES.get('resume')
+
+        # Redirect to page2.html
+        return redirect('page2')  # 'page2' should be the name of the URL pattern
+    #return render(request, 'index.html')
+
+

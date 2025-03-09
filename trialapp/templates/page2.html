@@ -1,57 +1,98 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resume Upload</title>
+    <title>Matched Jobs</title>
     <style>
-        .message {
+        .success-message {
+            text-align: center;
             color: green;
-            font-size: 18px;
+            font-size: 24px;
             font-weight: bold;
-            margin-top: 10px;
-        }
-        #results {
             margin-top: 20px;
-            font-size: 16px;
+        }
+
+        .fetch-button {
+            display: block;
+            width: 200px;
+            padding: 15px;
+            font-size: 18px;
+            color: white;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 20px auto;
+        }
+
+        .fetch-button:hover {
+            background-color: darkblue;
+        }
+
+        #jobResults {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .resume-section {
+            border: 2px solid #444;
+            padding: 15px;
+            margin: 20px auto;
+            width: 60%;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        .job-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px auto;
+            width: 80%;
+            background-color: #ffffff;
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
-
-    <p class="message">Resume uploaded successfully</p>
-
-    <button onclick="fetchResults()">View Results</button>
-
-    <div id="results"></div>
+    <h2 class="success-message">Resume uploaded successfully</h2>
+    
+    <button class="fetch-button" onclick="fetchMatchedJobs()">View Results</button>
+    
+    <div id="jobResults"></div>
 
     <script>
-        function fetchResults() {
-            fetch('/get_results/')
-                .then(response => response.json())
-                .then(data => {
-                    let resultsDiv = document.getElementById('results');
-                    resultsDiv.innerHTML = "<h3>Matching Jobs:</h3>";
-    
-                    if (data.results.length === 0) {
-                        resultsDiv.innerHTML += "<p>No matching jobs found.</p>";
-                        return;
-                    }
-    
-                    data.results.forEach(resume => {
-                        resultsDiv.innerHTML += `<p><strong>Resume ID:</strong> ${resume.resume_id}</p>`;
-                        resume.matched_jobs.forEach(job => {
-                            resultsDiv.innerHTML += `<p>- ${job.job_title} at ${job.company} (${job.match_score.toFixed(2)}% match)</p>`;
-                        });
-                        resultsDiv.innerHTML += "<hr>";
+        async function fetchMatchedJobs() {
+            let response = await fetch("/get_results/");
+            let data = await response.json();
+
+            if (data.results.length === 0) {
+                document.getElementById("jobResults").innerHTML = "<p>No matched jobs found.</p>";
+                return;
+            }
+
+            let html = `<h3>Matched Jobs based on skills:</h3>`;
+            data.results.forEach(resume => {
+                html += `
+                    <div class="resume-section">
+                        <h4>Resume ID: ${resume.resume_id}</h4>`;
+
+                if (resume.matched_jobs.length === 0) {
+                    html += `<p>No jobs matched for this resume.</p>`;
+                } else {
+                    resume.matched_jobs.forEach(job => {
+                        html += `
+                            <div class="job-card">
+                                <p><b>Job Title:</b> ${job.job_title}</p>
+                                <p><b>Location:</b> ${job.location}</p>
+                                <p><b>Match Score:</b> ${job.match_score}%</p>
+                            </div>`;
                     });
-                })
-                .catch(error => {
-                    console.error("Error fetching results:", error);
-                });
+                }
+
+                html += `</div>`; // Close resume-section div
+            });
+
+            document.getElementById("jobResults").innerHTML = html;
         }
     </script>
-    
-
 </body>
 </html>
