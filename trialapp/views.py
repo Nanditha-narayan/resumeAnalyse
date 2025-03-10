@@ -9,6 +9,8 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from pymongo import MongoClient
 from django.http import JsonResponse
+from bson.objectid import ObjectId
+
 
 # Connect to MongoDB
 client = MongoClient("mongodb://localhost:27017/")  # Update URI if needed
@@ -23,12 +25,13 @@ matched_collection = resume_db["MatchedJobs"]  # Collection to store matched job
 nlp = spacy.load("en_core_web_sm")
 
 # Define keywords for parsing
-SKILL_KEYWORDS = {"Python", "Java", "C++", "Flask", "Django", "Machine Learning", "Deep Learning", "SQL", "NoSQL", "AWS", "Terraform", "Linux"}
+SKILL_KEYWORDS = {"Python", "Java", "C++", "Flask", "Django", "Machine Learning", "Deep Learning", "SQL", "NoSQL", "AWS", "Terraform", "Linux","SQL", "Azure", "Data Factory", "DBT", "ETL", "Data structures", "Algorithms", "Async programming", "Object-oriented design", "Parallel programming", ".NET", "Java", "Angular", "Git", "Cloud-based systems", "Big data design", "Data normalization", "Queuing technologies", "Metrics", "Logging", "Monitoring", "Alerting", "RESTful APIs", "HL7 V2.x / FHIR", "CI/CD Pipeline", "K8s", "Terraform", "Electronic Health Records"
+}
 EXPERIENCE_KEYWORDS = {"intern", "developer", "engineer", "full-time", "research"}
 PROJECT_KEYWORDS = {"project", "developed", "implemented", "designed"}
 
 # Threshold for job matching
-THRESHOLD = 50 # Percentage match
+THRESHOLD = 60 # Percentage match
 
 
 def index(request):
@@ -170,29 +173,25 @@ def upload_and_analyze(request):
 
 
 def get_matched_jobs(request):
-    """Fetch matched jobs for each resume from MongoDB and return as JSON."""
-    matched_jobs = list(matched_collection.find({}, {"_id": 0, "resume_id": 1, "matched_jobs": 1}))
+    """Fetch only the latest matched jobs from MongoDB."""
+    latest_match = matched_collection.find_one({}, {"_id": 0, "resume_id": 1, "matched_jobs": 1}, sort=[("_id", -1)])
 
-    formatted_results = []
-    for resume in matched_jobs:
-        resume_id = resume.get("resume_id", "Unknown ID")
-        jobs = resume.get("matched_jobs", [])
+    if not latest_match:
+        return JsonResponse({"results": []}, safe=False)
 
-        job_list = []
-        for job in jobs:
-            job_list.append({
-                "job_title": job.get("job_title", "Unknown Job"),
-                "location": job.get("location", "Unknown Location"),
-                "match_score": job.get("match_score", 0)
-            })
+    resume_id = latest_match.get("resume_id", "Unknown ID")
+    jobs = latest_match.get("matched_jobs", [])
 
-        formatted_results.append({
-            "resume_id": resume_id,
-            "matched_jobs": job_list
-        })
+    job_list = [
+        {
+            "job_title": job.get("job_title", "Unknown Job"),
+            "location": job.get("location", "Unknown Location"),
+            "match_score": job.get("match_score", 0)
+        }
+        for job in jobs
+    ]
 
-    return JsonResponse({"results": formatted_results}, safe=False)
-
+    return JsonResponse({"results": [{"resume_id": resume_id, "matched_jobs": job_list}]}, safe=False)
 def upload_resume(request):
     if request.method == 'POST':
         # Handle the uploaded resume file (optional)
