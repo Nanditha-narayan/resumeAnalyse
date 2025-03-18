@@ -54,9 +54,25 @@
 </head>
 <body>
     <h2 class="success-message">Resume uploaded successfully</h2>
-    
-    <button class="fetch-button" onclick="fetchMatchedJobs()">View Results</button>
-    
+
+    {% if matched_jobs %}
+        <h3 style="text-align: center;">Matched Jobs based on skills:</h3>
+        {% for job in matched_jobs %}
+            <div class="resume-section">
+                <div class="job-card">
+                    <p><b>Job Title:</b> {{ job.job_title }}</p>
+                    <p><b>Company:</b> {{ job.company }}</p>
+                    <p><b>Location:</b> {{ job.location }}</p>
+                    <p><b>Match Score:</b> {{ job.match_score }}%</p>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p style="text-align: center;">No matched jobs found.</p>
+    {% endif %}
+
+    <a href="/" style="display: block; text-align: center; margin-top: 20px;">Go Back</a>
+
     <div id="jobResults"></div>
 
     <script>
@@ -69,7 +85,7 @@
                 return;
             }
 
-            let html = `<h3>Matched Jobs based on skills:</h3>`;
+            let html = `<h3 style="text-align: center;">Matched Jobs based on skills:</h3>`;
             data.results.forEach(resume => {
                 html += `
                     <div class="resume-section">

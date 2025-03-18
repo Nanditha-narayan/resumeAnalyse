@@ -6,4 +6,5 @@ urlpatterns = [
     path('upload/', upload_and_analyze, name='upload_and_analyze'),
     path("page2/", page2, name="page2"),
     path("get_results/", get_matched_jobs, name="get_matched_jobs"),
-]
+    path('get_matched_jobs/', get_matched_jobs, name='get_matched_jobs'),  
+]   
